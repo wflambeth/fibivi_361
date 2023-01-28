@@ -1,8 +1,10 @@
 import os
 import sys
+import webbrowser
+import pywebio
 import pandas as pd
 import plotext as plt
-#import csv
+import plotly.express as px
 
 def main():
     csv_path = sys.argv[1]
@@ -33,10 +35,9 @@ def main():
     # limit range to a certain span 
 
 
-    # output graph to plotext
-    plt.bar(df.timestamp, df.overall_score, width=0.5, minimum=50)
-    plt.title('Sleep scores')
-    plt.show()
+    # output graph to plotly
+    graph = px.bar(df, x='date', y='overall_score')
+    graph.show()    
 
 if __name__ == "__main__":
     main()
