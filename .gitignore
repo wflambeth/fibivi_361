@@ -1,4 +1,5 @@
 .venv*
 .git
 *.csv
-.vscode
+.vscode__pycache__
+__*__*

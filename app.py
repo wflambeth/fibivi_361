@@ -6,21 +6,28 @@ import plotly.express as px
 import pandas as pd
 import io
 import base64
+import socket
+import pickle
+
+HOST = '127.0.0.1'
+PORT = 29222
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-# declare component for opening section
-# "" for graph
+def get_colors():
+    print("Requesting colors...")
+    mysoc = socket.socket()
+    mysoc.connect((HOST, PORT))
 
-"""
-To add: 
-    - more explanatory text
-    - statement on data privacy
-    - links to benefits of sleep hygiene 
+    count = "4"
+    mysoc.send(count.encode())
+    data = mysoc.recv(2048)
+    colors = pickle.loads(data)
+    print("Got colors")
+    print(colors)
 
-    - link to fitbit site and how to export data
-    - big input that says "Upload File" 
-"""
+    return colors
+
 intro = dcc.Markdown('''
     # Welcome to FiBiVi!
 
@@ -75,8 +82,6 @@ article_links = dbc.Accordion([
     ], title="(Optional) Information on the science of sleep", id="articles")
 ],start_collapsed=True)
 
-# also I'll have to do a diff on the file to show it hasn't changed at all. (call this w/ python?)
-
 upload = dcc.Upload(
             id="uploader", 
             children=html.Div(html.A('Click here to select your sleep_score.csv file')),
@@ -99,15 +104,25 @@ app.layout = html.Div(id="body-div", children=[
     html.Div([
         upload
     ], id="body"),
-    dcc.Graph(id='graph')
+    dcc.Graph(id='graph'),
+    html.Button('Randomize Colors (click again to revert)', id='butt0n')
 ])
 
 @app.callback(Output('graph', 'figure'),
-              Input('uploader', 'contents'))
-def load_graph(datafile):
+              Input('uploader', 'contents'),
+              Input('butt0n', 'n_clicks'))
+def load_graph(datafile, clicks):
     # prevents errors when initially loading page
     if datafile is None: 
         raise PreventUpdate
+    
+    if clicks is None:
+        clicks = 0
+    
+    if clicks % 2 == 0: 
+        COLORS = "Portland_r"
+    else:
+        COLORS = get_colors() if clicks else "Portland_r"
     
     # unpacking allows us to discard the initial data on format/encoding
     _, contents = datafile.split(',')
@@ -128,16 +143,17 @@ def load_graph(datafile):
     # Remove duplicate logs on same date, keeping last one
     df = df.drop_duplicates(subset=['date'],keep='last')
 
-    graph = px.bar(df, x='date', y='overall_score', color='overall_score', color_continuous_scale='Portland_r', range_color=[min_score,max_score], hover_name='overall_score')
+    graph = px.bar(df, x='date', y='overall_score', color='overall_score', color_continuous_scale=COLORS, range_color=[min_score,max_score], hover_name='overall_score')
     graph.update_yaxes(range=[50,90],fixedrange=True, automargin='top')
     graph.update_xaxes(range=[start_idx, final_dt])
-    graph.update_layout(bargap=0.1)
-    graph.update_layout(height=800)
-    graph.update_layout(dragmode='pan', modebar_remove=['zoom', 'lasso', 'resetViewMapbox'])
+    graph.update_layout(bargap=0.1, height=800, dragmode='pan', modebar_remove=['zoom', 'lasso', 'resetViewMapbox'])
     return graph
 
 if __name__ == '__main__':
 	app.run_server(debug=True)
+
+
+
 
 """
 CSV format: 
