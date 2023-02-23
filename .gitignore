@@ -3,3 +3,4 @@
 *.csv
 .vscode__pycache__
 __*__*
+.vscode
