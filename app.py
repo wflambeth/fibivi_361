@@ -104,14 +104,16 @@ app.layout = html.Div(id="body-div", children=[
     html.Div([
         upload
     ], id="body"),
-    dcc.Graph(id='graph'),
+    dcc.Graph(id='bar_graph'),
+    dcc.Graph(id='trend_graph'),
+    dcc.Graph(id="deepsleep_graph"),
     html.Button('Randomize Colors (click again to revert)', id='butt0n')
 ])
 
-@app.callback(Output('graph', 'figure'),
+@app.callback(Output('bar_graph', 'figure'),
               Input('uploader', 'contents'),
               Input('butt0n', 'n_clicks'))
-def load_graph(datafile, clicks):
+def load_bargraph(datafile, clicks):
     # prevents errors when initially loading page
     if datafile is None: 
         raise PreventUpdate
@@ -143,11 +145,69 @@ def load_graph(datafile, clicks):
     # Remove duplicate logs on same date, keeping last one
     df = df.drop_duplicates(subset=['date'],keep='last')
 
-    graph = px.bar(df, x='date', y='overall_score', color='overall_score', color_continuous_scale=COLORS, range_color=[min_score,max_score], hover_name='overall_score')
-    graph.update_yaxes(range=[50,90],fixedrange=True, automargin='top')
-    graph.update_xaxes(range=[start_idx, final_dt])
-    graph.update_layout(bargap=0.1, height=800, dragmode='pan', modebar_remove=['zoom', 'lasso', 'resetViewMapbox'])
-    return graph
+    bargraph = px.bar(df, x='date', y='overall_score', color='overall_score', color_continuous_scale=COLORS, range_color=[min_score,max_score], hover_name='overall_score')
+    bargraph.update_yaxes(range=[50,90],fixedrange=True, automargin='top')
+    bargraph.update_xaxes(range=[start_idx, final_dt])
+    bargraph.update_layout(bargap=0.1, height=800, dragmode='pan', modebar_remove=['zoom', 'lasso', 'resetViewMapbox'])
+    return bargraph
+
+@app.callback(Output('trend_graph', 'figure'),
+              Input('uploader', 'contents'))
+def load_trendgraph(datafile):
+    if datafile is None:
+        raise PreventUpdate
+    
+    _, contents = datafile.split(',')
+    formatted = base64.b64decode(contents)
+
+    df = pd.read_csv(io.StringIO(formatted.decode('utf-8')), parse_dates=True)
+    df['date'] = df['timestamp'].astype('datetime64').dt.to_pydatetime()
+    min_score = df.overall_score.min(skipna=True)
+    max_score = df.overall_score.max()
+
+    # Indices to initially show in graph (past 30 days)
+    final_dt = df.date.iat[0]
+    start_idx = final_dt - pd.Timedelta(days=120)
+
+    # Remove duplicate logs on same date, keeping last one
+    df = df.drop_duplicates(subset=['date'],keep='last')
+
+    # Have to convert dates to floats for some reason here? 
+    trendgraph = px.scatter(df, x='date', y="overall_score", trendline="rolling", trendline_options=dict(window=7), hover_data=["overall_score"], color='overall_score', color_continuous_scale="Portland_r", range_color=[min_score,max_score], trendline_color_override="#3266a8", opacity=0.4)
+    trendgraph.update_yaxes(range=[50,90],fixedrange=True, automargin='top')
+    trendgraph.update_xaxes(range=[start_idx, final_dt])
+    trendgraph.update_layout(height=800, dragmode='pan', modebar_remove=['zoom', 'lasso', 'resetViewMapbox'])
+
+    return trendgraph
+
+@app.callback(Output('deepsleep_graph', 'figure'),
+              Input('uploader', 'contents'))
+def load_deepsleepgraph(datafile):
+    if datafile is None:
+        raise PreventUpdate
+    
+    _, contents = datafile.split(',')
+    formatted = base64.b64decode(contents)
+
+    df = pd.read_csv(io.StringIO(formatted.decode('utf-8')), parse_dates=True)
+    df['date'] = df['timestamp'].astype('datetime64').dt.to_pydatetime()
+    min_score = df.deep_sleep_in_minutes.min(skipna=True)
+    max_score = df.deep_sleep_in_minutes.max()
+
+    # Indices to initially show in graph (past 30 days)
+    final_dt = df.date.iat[0]
+    start_idx = final_dt - pd.Timedelta(days=120)
+
+    # Remove duplicate logs on same date, keeping last one
+    df = df.drop_duplicates(subset=['date'],keep='last')
+
+    # Have to convert dates to floats for some reason here? 
+    dsgraph = px.scatter(df, x='date', y="deep_sleep_in_minutes", trendline="rolling", trendline_options=dict(window=7), hover_data=["deep_sleep_in_minutes"], color='deep_sleep_in_minutes', color_continuous_scale="Portland_r", range_color=[min_score,max_score], trendline_color_override="#3266a8", opacity=0.4)
+    dsgraph.update_yaxes(range=[0,130],fixedrange=True, automargin='top')
+    dsgraph.update_xaxes(range=[start_idx, final_dt])
+    dsgraph.update_layout(height=800, dragmode='pan', modebar_remove=['zoom', 'lasso', 'resetViewMapbox'])
+
+    return dsgraph
 
 if __name__ == '__main__':
 	app.run_server(debug=True)
