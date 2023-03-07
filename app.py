@@ -14,20 +14,6 @@ PORT = 29222
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-def get_colors():
-    print("Requesting colors...")
-    mysoc = socket.socket()
-    mysoc.connect((HOST, PORT))
-
-    count = "4"
-    mysoc.send(count.encode())
-    data = mysoc.recv(2048)
-    colors = pickle.loads(data)
-    print("Got colors")
-    print(colors)
-
-    return colors
-
 intro = dcc.Markdown('''
     # Welcome to FiBiVi!
 
@@ -93,7 +79,7 @@ upload = dcc.Upload(
             'margin': '10px'
         })
 
-
+# Layout of app page, generated using Plotly Dash framework syntax
 app.layout = html.Div(id="body-div", children=[
     html.Div([
         intro,
@@ -105,46 +91,80 @@ app.layout = html.Div(id="body-div", children=[
         upload
     ], id="body"),
     dcc.Graph(id='bar_graph'),
+    html.Button('Randomize Colors (click again to revert)', id='butt0n'),
     dcc.Graph(id='trend_graph'),
     dcc.Graph(id="deepsleep_graph"),
-    html.Button('Randomize Colors (click again to revert)', id='butt0n')
 ])
+
+def get_colors():
+    """
+    Retrieves colors from microservice. 
+    """
+    mysoc = socket.socket()
+    mysoc.connect((HOST, PORT))
+
+    count = "4"
+    mysoc.send(count.encode())
+    data = mysoc.recv(2048)
+    colors = pickle.loads(data)
+    
+    return colors
+
+def unpack_data(datafile, format):
+    """
+    Unpack and load data from user-uploaded file. 
+    """
+    # Ensure formatting data is correct
+    if format not in ('bar', 'scatter'):
+        raise Exception
+
+    # Use tuple unpacking to discard header data concerning file format
+    _, contents = datafile.split(',')
+    formatted = base64.b64decode(contents)
+
+    # Extract data from decoded file, and add date index as needed
+    df = pd.read_csv(io.StringIO(formatted.decode('utf-8')), parse_dates=True)
+    if format == 'bar':
+        df['date'] = pd.to_datetime(df['timestamp']).dt.date
+    elif format == 'scatter':
+        df['date'] = df['timestamp'].astype('datetime64').dt.to_pydatetime()
+
+    # Strip duplicate data
+    df = df.drop_duplicates(subset=['date'],keep='last')
+
+    return df
 
 @app.callback(Output('bar_graph', 'figure'),
               Input('uploader', 'contents'),
               Input('butt0n', 'n_clicks'))
 def load_bargraph(datafile, clicks):
+    """
+    Load sleep score bar graph at top of page.
+    """
     # prevents errors when initially loading page
     if datafile is None: 
         raise PreventUpdate
     
+    # Set graph colors according to user button clicks
     if clicks is None:
         clicks = 0
-    
     if clicks % 2 == 0: 
         COLORS = "Portland_r"
     else:
         COLORS = get_colors() if clicks else "Portland_r"
     
-    # unpacking allows us to discard the initial data on format/encoding
-    _, contents = datafile.split(',')
-    formatted = base64.b64decode(contents)
+    # Load user data from file, via helper function
+    df = unpack_data(datafile, 'bar')
 
-    df = pd.read_csv(io.StringIO(formatted.decode('utf-8')), parse_dates=True)
-    df['date'] = pd.to_datetime(df['timestamp']).dt.date
-    df['time'] = pd.to_datetime(df['timestamp']).dt.time
-
-    # Indices to initially show in graph (past 30 days)
+    # Indices to initially show in graph (past 120 days)
     final_dt = df.date.iat[0]
     start_idx = final_dt - pd.Timedelta(days=120)
 
-    # Min/max values, to set color scale relative to these
+    # Min/max values of overall score, to calibrate color-coding scale
     min_score = df.overall_score.min(skipna=True)
     max_score = df.overall_score.max()
 
-    # Remove duplicate logs on same date, keeping last one
-    df = df.drop_duplicates(subset=['date'],keep='last')
-
+    # Create and style bar graph object 
     bargraph = px.bar(df, x='date', y='overall_score', color='overall_score', color_continuous_scale=COLORS, range_color=[min_score,max_score], hover_name='overall_score')
     bargraph.update_yaxes(range=[50,90],fixedrange=True, automargin='top')
     bargraph.update_xaxes(range=[start_idx, final_dt])
@@ -154,26 +174,24 @@ def load_bargraph(datafile, clicks):
 @app.callback(Output('trend_graph', 'figure'),
               Input('uploader', 'contents'))
 def load_trendgraph(datafile):
+    """
+    Load seven-day sleep score trendline graph.
+    """
     if datafile is None:
         raise PreventUpdate
-    
-    _, contents = datafile.split(',')
-    formatted = base64.b64decode(contents)
 
-    df = pd.read_csv(io.StringIO(formatted.decode('utf-8')), parse_dates=True)
-    df['date'] = df['timestamp'].astype('datetime64').dt.to_pydatetime()
+    # Load user data from file, via helper function
+    df = unpack_data(datafile, 'scatter')
+    # Calibrate min/max score and initial indices
     min_score = df.overall_score.min(skipna=True)
     max_score = df.overall_score.max()
-
-    # Indices to initially show in graph (past 30 days)
     final_dt = df.date.iat[0]
     start_idx = final_dt - pd.Timedelta(days=120)
 
-    # Remove duplicate logs on same date, keeping last one
-    df = df.drop_duplicates(subset=['date'],keep='last')
-
-    # Have to convert dates to floats for some reason here? 
-    trendgraph = px.scatter(df, x='date', y="overall_score", trendline="rolling", trendline_options=dict(window=7), hover_data=["overall_score"], color='overall_score', color_continuous_scale="Portland_r", range_color=[min_score,max_score], trendline_color_override="#3266a8", opacity=0.4)
+    # Create and style scatterplot graph object 
+    trendgraph = px.scatter(df, x='date', y="overall_score", trendline="rolling", trendline_options=dict(window=7), 
+                            hover_data=["overall_score"], color='overall_score', color_continuous_scale="Portland_r", 
+                            range_color=[min_score,max_score], trendline_color_override="#3266a8", opacity=0.4)
     trendgraph.update_yaxes(range=[50,90],fixedrange=True, automargin='top')
     trendgraph.update_xaxes(range=[start_idx, final_dt])
     trendgraph.update_layout(height=800, dragmode='pan', modebar_remove=['zoom', 'lasso', 'resetViewMapbox'])
@@ -185,24 +203,19 @@ def load_trendgraph(datafile):
 def load_deepsleepgraph(datafile):
     if datafile is None:
         raise PreventUpdate
-    
-    _, contents = datafile.split(',')
-    formatted = base64.b64decode(contents)
 
-    df = pd.read_csv(io.StringIO(formatted.decode('utf-8')), parse_dates=True)
-    df['date'] = df['timestamp'].astype('datetime64').dt.to_pydatetime()
+    # Load user data from file via helper function
+    df = unpack_data(datafile, 'scatter')
+    # Calibrate min/max score and initial indices
     min_score = df.deep_sleep_in_minutes.min(skipna=True)
     max_score = df.deep_sleep_in_minutes.max()
-
-    # Indices to initially show in graph (past 30 days)
     final_dt = df.date.iat[0]
     start_idx = final_dt - pd.Timedelta(days=120)
 
-    # Remove duplicate logs on same date, keeping last one
-    df = df.drop_duplicates(subset=['date'],keep='last')
-
-    # Have to convert dates to floats for some reason here? 
-    dsgraph = px.scatter(df, x='date', y="deep_sleep_in_minutes", trendline="rolling", trendline_options=dict(window=7), hover_data=["deep_sleep_in_minutes"], color='deep_sleep_in_minutes', color_continuous_scale="Portland_r", range_color=[min_score,max_score], trendline_color_override="#3266a8", opacity=0.4)
+    # Create and style bar graph object
+    dsgraph = px.scatter(df, x='date', y="deep_sleep_in_minutes", trendline="rolling", trendline_options=dict(window=7), 
+                         hover_data=["deep_sleep_in_minutes"], color='deep_sleep_in_minutes', color_continuous_scale="Portland_r", 
+                         range_color=[min_score,max_score], trendline_color_override="#3266a8", opacity=0.4)
     dsgraph.update_yaxes(range=[0,130],fixedrange=True, automargin='top')
     dsgraph.update_xaxes(range=[start_idx, final_dt])
     dsgraph.update_layout(height=800, dragmode='pan', modebar_remove=['zoom', 'lasso', 'resetViewMapbox'])
