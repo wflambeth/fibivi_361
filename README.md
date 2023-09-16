@@ -18,5 +18,11 @@ The three graphs on the page will automatically populate. You can use their cont
 
 ## Screenshots
 
+![Introduction and upload text](https://github.com/wflambeth/fibivi_361/blob/main/fibivi_screenshot_01.jpeg)
 
+
+![Bar graph view](https://github.com/wflambeth/fibivi_361/blob/main/fibivi_screenshot_02.jpeg)
+
+
+![Deep sleep graph view](https://github.com/wflambeth/fibivi_361/blob/main/fibivi_screenshot_03.jpeg)
 
