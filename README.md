@@ -1,28 +1,22 @@
-# fibivi
+# CS 361 - FitBit Data Visualizer
 
-# The Colors microservice
+This is a data visualization webapp that allows users to view long-term graphs and rolling averages of their Fitbit sleep data; these features are not included in the official Fitbit app. The webapp uses Pandas to load and transform the user's CSV-formatted sleep data, and Plotly Dash to generate interactive graphs. 
 
-This is a microservice dedicated to serving six-digit hex codes, formatted for use as CSS colors. It takes a single integer, in string format, and returns
-an array of hex codes, of length (integer). 
+This was a project for Oregon State's **CS 361 - Software Engineering I**.
 
-## Format
+## Installation
 
-Calls to the microservice must be made via OS socket connection. The string containing the integer must be encoded using standard UTF-8 binary encoding. 
+After cloning the repo, set up a Python virtual environment of your choice, then run `pip -r requirements.txt` to install the needed dependencies. Once the dependencies are installed, you can run a local Dash server with `python app.py` and view the resulting page on a web browser. 
 
-Responses will consist of an array of strings, binary-encoded using the Python standard library's pickle module. They must be decoded using the same module. 
+## Usage
 
-## UML Diagram
+To obtain a compatible sleep data CSV file, submit a request to FitBit at https://www.fitbit.com/settings/data/export. The export may take 24-72 hours to complete; once it does, download the file and locate the file at `Sleep/sleep_score.csv`. This is the file you will upload when prompted. (**Note: user data remains entirely local when running the app locally, and is not accessible to the developer or any other party.**)
 
-![Screenshot_20230209_194949](https://user-images.githubusercontent.com/13874701/217996199-fb6e6c73-8cb4-4813-8dc2-2312e8b24a19.png)
+Once the app has been started with `python app.py`, visit the localhost address specified in the terminal. Click the blue button near the top of the page to load your data. 
 
-## Example: Request
-    mysoc = socket.socket()
-    mysoc.connect((HOST, PORT))
-    count = '2'
-    mysoc.send(count.encode())
+The three graphs on the page will automatically populate. You can use their controls to pan through the data, zoom in on specific time frames, or even download the graphs as PNG images. Hover over a given datapoint to view the details. 
+
+## Screenshots
 
 
-## Example: Response
-    data = mysoc.recv(1024)
-    colors = pickle.loads(data)
-    print(colors) # ['#05FF77', '0810FD']
+
